@@ -1,5 +1,7 @@
 import multiprocessing as mp
+
 import wx
+
 import proc
 
 q_in = mp.Queue()
