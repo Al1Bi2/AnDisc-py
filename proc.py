@@ -27,11 +27,13 @@ def audio():
     Translate mic pitch down and send to Virtual Audia Cable (code need to be found manually)
     """
     s = Server()
-    s.setOutputDevice(13) #num of Virtual Audio Cable (search manually)
+    s.setOutputDevice(13)  # num of Virtual Audio Cable (search manually)
     s.boot()
     mic = Input().play()
     s.start()
     a = FreqShift(mic, shift=-60).out()
+    while True:
+        continue
 
 
 def virtual_cam(queue):
