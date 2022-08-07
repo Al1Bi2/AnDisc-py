@@ -139,10 +139,9 @@ class MyApp(wx.App):
         return True
 
 
-# end of GUI classes
+# end of GUI ************************************************
 
 if __name__ == '__main__':
     app = MyApp(0)
     app.MainLoop()
 
-# Доделать выхож и завершнеие процессов (вынести их из функцииб оставть только их старт)
