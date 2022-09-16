@@ -8,7 +8,7 @@ q_in = mp.Queue()
 q_out = mp.Queue()
 q_2proc = mp.Queue()
 
-fps = 40
+fps = 36
 
 proc_thread = mp.Process(name="Proc", target=proc.processing, args=(q_in, q_out, q_2proc,))
 audio_thread = mp.Process(name="audio", target=proc.audio)
@@ -73,6 +73,10 @@ class MyFrame(wx.Frame):
         self.checkbox_2 = wx.CheckBox(self.panel_1, wx.ID_ANY, "Mask", style=wx.ALIGN_RIGHT)
         sizer_3.Add(self.checkbox_2, 0, 0, 0)
 
+        self.slider = wx.Slider(self.panel_1, value=100, minValue=80, maxValue=200,
+                                style=wx.SL_HORIZONTAL | wx.SL_LABELS)
+        sizer_3.Add(self.slider, 0, 0, 0)
+
         self.displayPanel = wx.Panel(self.panel_1, wx.ID_ANY)  # image panel
         self.displayPanel.SetSize((640, 545))
         self.displayPanel.SetDoubleBuffered(True)
@@ -88,9 +92,15 @@ class MyFrame(wx.Frame):
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
         self.Bind(wx.EVT_CHECKBOX, self.Check1Box, self.checkbox_1)
         self.Bind(wx.EVT_CHECKBOX, self.Check2Box, self.checkbox_2)
+        self.Bind(wx.EVT_SLIDER, self.OnSliderScroll)
 
         self.Bind(wx.EVT_CLOSE, self.OnExit)
         # end wxGlade
+
+    def OnSliderScroll(self, e):
+        obj = e.GetEventObject()
+        val = obj.GetValue()
+        q_2proc.put((3, val))
 
     def onPaint(self, evt):
         dc = wx.BufferedPaintDC(self.displayPanel)
@@ -100,8 +110,11 @@ class MyFrame(wx.Frame):
         pass
 
     def Redraw(self, event):
+
         if self.cam_on:
+
             tmp = q_in.get()
+
             self.image.CopyFromBuffer(tmp)
             self.Refresh()
         else:
@@ -119,7 +132,8 @@ class MyFrame(wx.Frame):
     def OnOpen(self, event):
 
         with wx.FileDialog(self, "Open Mask file",
-                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+                           wildcard="PNG and JPEG files (*.png;*.jpeg)|*.png;*.jpeg") as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
 
@@ -146,5 +160,3 @@ class MyApp(wx.App):
 if __name__ == '__main__':
     app = MyApp(0)
     app.MainLoop()
-
-# Доделать выхож и завершнеие процессов (вынести их из функцииб оставть только их старт)

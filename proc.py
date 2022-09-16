@@ -9,25 +9,46 @@ def null(x):
     pass
 
 
+def overlay(back, mask):
+    alpha = mask[..., 3:].repeat(3, axis=2).astype(np.float) // 255
+    back = (back.astype(np.float) * (1 - alpha)) + mask[..., :3].astype(np.float) * alpha
+    back = back.astype('uint8')
+    return back
+
+
 def open_Cyrillic(path):
     """Open image (safe for non-ASCII paths)"""
+    alpha = False
     maskFile = path
     m_stream = open(maskFile, 'rb')
     m_bytes = bytearray(m_stream.read())
     array = np.asarray(m_bytes, dtype=np.uint8)
     mask = cv2.imdecode(array, cv2.IMREAD_UNCHANGED)
     if len(mask.shape) > 2 and mask.shape[2] == 4:
-        # convert the image from RGBA2RGB
-        mask = cv2.cvtColor(mask, cv2.COLOR_BGRA2BGR)
-    return mask
+        alpha = True;
+    # convert the image from RGBA2RGB
+    # mask = cv2.cvtColor(mask, cv2.COLOR_BGRA2BGR)
+
+    return alpha, mask
+
+
+def getAudioCable():
+    name, number = pa_get_output_devices()
+    for i in range(len(name)):
+        if name[i].find("(VB-Audio Virtual Cable)") != -1:
+            return number[i]
+    print('!!!ERROR!!!   Install Virtual Audio Cable')
+    return -1
 
 
 def audio():
     """
     Translate mic pitch down and send to Virtual Audia Cable (code need to be found manually)
     """
+
     s = Server()
-    s.setOutputDevice(13)  # num of Virtual Audio Cable (search manually)
+    device = getAudioCable()
+    s.setOutputDevice(device)  # num of Virtual Audio Cable (search manually)
     s.boot()
     mic = Input().play()
     s.start()
@@ -42,9 +63,9 @@ def virtual_cam(queue):
     :param queue: queue with frame
     :return:
     """
-    cam_on=False
+    cam_on = False
 
-    blank_image=np.zeros((480,854,3),np.uint8)
+    blank_image = np.zeros((480, 854, 3), np.uint8)
     with vcam.Camera(854,
                      480,
                      30,
@@ -61,7 +82,6 @@ def virtual_cam(queue):
                     cam_on = True
 
 
-
 def processing(q_in, q_out, q_2proc):
     """
     Capture image from cam and process it with OpenCV DNN module on Res10 model.
@@ -71,13 +91,15 @@ def processing(q_in, q_out, q_2proc):
     :param q_2proc: Queue with input from GUI in main
     """
 
+    scale_state = 1.0
     freeze_state = True
     mask_state = False
+    alpha_state = True
 
     message = None
 
     maskFile = "mask.png"
-    mask = cv2.imread(maskFile)
+    mask = cv2.imread(maskFile, cv2.IMREAD_UNCHANGED)
 
     modelFile = "model/res10_300x300_ssd_iter_140000.caffemodel"
     configFile = "model/deploy.prototxt.txt"
@@ -87,25 +109,34 @@ def processing(q_in, q_out, q_2proc):
     ######################################################################
     while True:
 
-        #timer = time.perf_counter()
+        # timer = time.perf_counter()
 
-        if not q_2proc.empty():  # look for checboxes changes
+        if not q_2proc.empty():  # look for checkboxes changes
             message = q_2proc.get(False)
 
-        if message != None and message[0] != 0:
-            if message[0] == 1:
+        if message != None:
+            if message[0] == 0:
+                alpha_state, mask = open_Cyrillic(message[1])
+
+            elif message[0] == 1:
                 freeze_state = message[1]
-            else:
+            elif message[0] == 2:
                 mask_state = message[1]
-        ###################################################3
+            elif message[0] == 3:
+                scale_state = message[1] / 100
+            message = None
+
+        ###################################################
         ret, frame = cap.read()  # try read frame frm camera
         if ret:  # if frame exist
             h, w = frame.shape[:2]  # frame sizes
             blob = cv2.dnn.blobFromImage(cv2.resize(frame, (150, 150)), 1.0,
-                                         (75, 75), (104.0, 117.0, 123.0))  # NN input configure [(150,150),1.0,(75,75)] for low systems;
-                                                                           #(300, 30), 1.0, (150, 150)] for medium systems;
-                                                                           # [(300,300),1.0,(300,300)] - best
+                                         (75, 75), (104.0, 117.0,
+                                                    123.0))  # NN input configure [(150,150),1.0,(75,75)] for low systems;
+            # (300, 30), 1.0, (150, 150)] for medium systems;
+            # [(300,300),1.0,(300,300)] - best
 
+            # print(frame.nbytes)  # 921600 (480, 640, 3) uint8
             net.setInput(blob)  # NN search
 
             faces = net.forward()  # set of faces found by NN
@@ -115,13 +146,25 @@ def processing(q_in, q_out, q_2proc):
                 box = faces[0, 0, 0, 3:7] * np.array([w, h, w, h])
                 (x, y, x1, y1) = box.astype("int")
 
+                width = x1 - x
+                height = y1 - y
+
+                y = int(y - height * (scale_state - 1) * 0.5)
+                y1 = int(y1 + height * (scale_state - 1) * 0.5)
+                x = int(x - width * (scale_state - 1) * 0.5)
+                x1 = int(x1 + width * (scale_state - 1) * 0.5)
+
                 y = 0 if y < 0 else y  # if boxes are out frame borders
                 y1 = h - 1 if y1 > h - 1 else y1
                 x = 0 if x < 0 else x
                 x1 = w - 1 if x1 > w - 1 else x1
 
                 if mask_state:  # Apply blur or mask on image
-                    frame[y:y1, x:x1] = cv2.resize(mask, (x1 - x, y1 - y), interpolation=cv2.INTER_NEAREST)
+                    if alpha_state:
+                        frame[y:y1, x:x1] = overlay(frame[y:y1, x:x1],
+                                                    cv2.resize(mask, (x1 - x, y1 - y), interpolation=cv2.INTER_NEAREST))
+                    else:
+                        frame[y:y1, x:x1] = cv2.resize(mask, (x1 - x, y1 - y), interpolation=cv2.INTER_NEAREST)
                 else:
                     frame[y:y1, x:x1] = cv2.GaussianBlur(frame[y:y1, x:x1], (51, 101), 0)
 
@@ -131,8 +174,7 @@ def processing(q_in, q_out, q_2proc):
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             q_in.put(frame)  # send frame to GUI
 
-            #print(1 / (time.perf_counter() - timer))
-        if message != None and message[0] == 0:  # Change of mask pic
-            mask = open_Cyrillic(message[1])
-        message = None
+            # sum=(time.perf_counter() - timer)
+            # print(1/sum)
+
     cap.release()
