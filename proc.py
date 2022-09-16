@@ -8,7 +8,6 @@ from pyvirtualcam import PixelFormat
 def null(x):
     pass
 
-
 def overlay(back, mask):
     alpha = mask[..., 3:].repeat(3, axis=2).astype(np.float) // 255
     back = (back.astype(np.float) * (1 - alpha)) + mask[..., :3].astype(np.float) * alpha
