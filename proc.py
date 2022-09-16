@@ -4,7 +4,6 @@ import pyvirtualcam as vcam
 from pyo import *
 from pyvirtualcam import PixelFormat
 
-
 def null(x):
     pass
 
