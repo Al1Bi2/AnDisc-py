@@ -1,0 +1,5 @@
+numpy==1.22.0
+opencv_python==4.10.0.84
+pyo==1.0.5
+pyvirtualcam==0.11.1
+wxPython==4.2.1

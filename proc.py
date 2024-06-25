@@ -64,8 +64,8 @@ def virtual_cam(queue):
     """
     cam_on = False
 
-    blank_image = np.zeros((480, 854, 3), np.uint8)
-    with vcam.Camera(854,
+    blank_image = np.zeros((480, 640, 3), np.uint8)
+    with vcam.Camera(640,
                      480,
                      30,
                      fmt=PixelFormat.BGR) as cam:
@@ -80,7 +80,32 @@ def virtual_cam(queue):
                 if not queue.empty():
                     cam_on = True
 
-
+def list_ports():
+    """
+    Test the ports and returns a tuple with the available ports 
+    and the ones that are working.
+    """
+    is_working = True
+    dev_port = 0
+    working_ports = []
+    available_ports = []
+    while is_working:
+        camera = cv2.VideoCapture(dev_port)
+        if not camera.isOpened():
+            is_working = False
+            print("Port %s is not working." %dev_port)
+        else:
+            is_reading, img = camera.read()
+            w = camera.get(3)
+            h = camera.get(4)
+            if is_reading:
+                print("Port %s is working and reads images (%s x %s)" %(dev_port,h,w))
+                working_ports.append(dev_port)
+            else:
+                print("Port %s for camera ( %s x %s) is present but does not reads." %(dev_port,h,w))
+                available_ports.append(dev_port)
+        dev_port +=1
+    return available_ports,working_ports
 def processing(q_in, q_out, q_2proc):
     """
     Capture image from cam and process it with OpenCV DNN module on Res10 model.
@@ -105,8 +130,9 @@ def processing(q_in, q_out, q_2proc):
     net = cv2.dnn.readNetFromCaffe(configFile, modelFile)
 
     cap = cv2.VideoCapture(0)
+    print(list_ports())
     ######################################################################
-    while True:
+    while cap.isOpened():
 
         # timer = time.perf_counter()
 
@@ -127,10 +153,11 @@ def processing(q_in, q_out, q_2proc):
 
         ###################################################
         ret, frame = cap.read()  # try read frame frm camera
+        #print(frame)
         if ret:  # if frame exist
             h, w = frame.shape[:2]  # frame sizes
-            blob = cv2.dnn.blobFromImage(cv2.resize(frame, (150, 150)), 1.0,
-                                         (75, 75), (104.0, 117.0,
+            blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300,300)), 1.0,
+                                         (300,300), (104.0, 117.0,
                                                     123.0))  # NN input configure [(150,150),1.0,(75,75)] for low systems;
             # (300, 30), 1.0, (150, 150)] for medium systems;
             # [(300,300),1.0,(300,300)] - best
@@ -171,6 +198,7 @@ def processing(q_in, q_out, q_2proc):
             q_out.put(frame)  # send frame to virtual camera
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #print(frame.shape)
             q_in.put(frame)  # send frame to GUI
 
             # sum=(time.perf_counter() - timer)

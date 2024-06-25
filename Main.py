@@ -3,7 +3,9 @@ import multiprocessing as mp
 import wx
 
 import proc
-
+import os
+dirname = os.path.dirname(__file__)
+maskfilename = os.path.join(dirname, 'no_signal.png')
 q_in = mp.Queue()
 q_out = mp.Queue()
 q_2proc = mp.Queue()
@@ -80,7 +82,7 @@ class MyFrame(wx.Frame):
         self.displayPanel = wx.Panel(self.panel_1, wx.ID_ANY)  # image panel
         self.displayPanel.SetSize((640, 545))
         self.displayPanel.SetDoubleBuffered(True)
-        self.image = wx.Bitmap("C:/Users/Я/Documents/учёба/инфа/an/no_signal.png", wx.BITMAP_TYPE_ANY)
+        self.image = wx.Bitmap(maskfilename, wx.BITMAP_TYPE_ANY)
         self.displayPanel.Bind(wx.EVT_PAINT, self.onPaint)
         sizer_2.Add(self.displayPanel, 1, wx.EXPAND, 0)
 
@@ -110,16 +112,21 @@ class MyFrame(wx.Frame):
         pass
 
     def Redraw(self, event):
+        #print(self.image.GetSize())
+        #print(q_in.empty())
 
         if self.cam_on:
 
             tmp = q_in.get()
+            #print(tmp)
 
             self.image.CopyFromBuffer(tmp)
+            
             self.Refresh()
         else:
             if not q_in.empty():
                 self.cam_on = True
+        #print("____")
 
     def Check1Box(self, event):
         state = self.checkbox_1.GetValue()
